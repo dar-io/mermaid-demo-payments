@@ -1,0 +1,22 @@
+flowchart LR
+  subgraph mermaid_demo_payments
+    direction TB
+    api_orders["src/api/orders.ts"] --> billing_charge["src/billing/charge.ts"]
+    api_orders --> queue_worker["src/queue/worker.ts"]
+    api_webhooks["src/api/webhooks.ts"] --> billing_charge
+    api_webhooks --> webhooks_dispatch["src/webhooks/dispatch.ts"]
+    webhooks_dispatch -->|"POST {type, payload}"| notify_ingest["mermaid-demo-notify /ingest"]
+    db_schema["db/schema.sql"]
+    api_orders --> db_schema
+    api_webhooks --> db_schema
+  end
+  subgraph mermaid_demo_notify
+    direction TB
+    notify_ingest["internal/ingest/webhook.go"] --> queue_consumer["internal/queue/consumer.go"]
+    notify_ingest --> render_template["internal/render/template.go"]
+    queue_consumer --> deliver_email["internal/deliver/email.go"]
+    queue_consumer --> deliver_push["internal/deliver/push.go"]
+    api_handlers["internal/api/handlers.go"]
+    db_models["db/models.go"]
+    notify_ingest --> db_models
+  end
