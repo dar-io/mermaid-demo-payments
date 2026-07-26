@@ -29,9 +29,19 @@ jobs:
   # The one check this product legitimately owns: it really parses the Mermaid
   # that the AI committed. A red build here is meaningful rather than arbitrary.
   #
-  # Failure output deliberately never names a line number — diagram error copy
-  # in this product stays generic ("syntax error in the Mermaid code"), and this
-  # text surfaces in the app, so mmdc's raw "Parse error on line N" is filtered.
+  # TWO THINGS THIS GETS RIGHT, both learned the hard way on a real run:
+  #
+  # 1. `--no-sandbox`. mermaid-cli renders through Puppeteer, and Chromium cannot
+  #    launch on a GitHub runner without it ("No usable sandbox!"). Without the
+  #    puppeteer config below, EVERY diagram fails.
+  # 2. A tooling failure is NOT a syntax error. The first version reported
+  #    "syntax error in the Mermaid code" for the Chromium launch failure above —
+  #    a false accusation against a perfectly valid diagram, from the very check
+  #    that is supposed to be the trustworthy one. stderr is now classified, and
+  #    an infrastructure failure says so.
+  #
+  # Genuine syntax failures still never name a line number: that copy surfaces in
+  # the app, where diagram error messages stay generic by standing convention.
   diagram-validate:
     runs-on: ubuntu-latest
     steps:
@@ -49,15 +59,25 @@ jobs:
           fi
           echo "Validating ${#files[@]} diagram(s)…"
           npm install --no-save --silent @mermaid-js/mermaid-cli@11
-          status=0
+          echo '{"args":["--no-sandbox","--disable-setuid-sandbox"]}' > /tmp/pptr.json
+          syntax_failures=0
+          tool_failures=0
           for f in "${files[@]}"; do
-            if npx --no-install mmdc --quiet -i "$f" -o /tmp/out.svg 2>/tmp/err.txt; then
-              echo "  ok    $f"
+            if npx --no-install mmdc --quiet -p /tmp/pptr.json -i "$f" -o /tmp/out.svg 2>/tmp/err.txt; then
+              echo "  ok      $f"
+            elif grep -qiE 'launch the browser|usable sandbox|puppeteer|ENOENT|EACCES|network|ETIMEDOUT' /tmp/err.txt; then
+              # The validator could not run. Say that — do not blame the diagram.
+              echo "  BROKEN  $f — the validator could not run; this is not a problem with the diagram"
+              sed -E 's/^/          /' /tmp/err.txt | head -8
+              tool_failures=$((tool_failures+1))
             else
-              # Strip any line/column detail before echoing — see note above.
-              echo "  FAIL  $f — syntax error in the Mermaid code"
+              echo "  FAIL    $f — syntax error in the Mermaid code"
               sed -E 's/[Ll]ine [0-9]+([:,]| )?//g; s/[Cc]olumn [0-9]+([:,]| )?//g' /tmp/err.txt | head -20
-              status=1
+              syntax_failures=$((syntax_failures+1))
             fi
           done
-          exit $status
+          if [ "$tool_failures" -gt 0 ]; then
+            echo "::error title=diagram-validate could not run::$tool_failures diagram(s) went unchecked because the renderer failed to start. This is a CI problem, not a diagram problem."
+            exit 1
+          fi
+          [ "$syntax_failures" -eq 0 ] || exit 1
