@@ -9,3 +9,5 @@ Order intake is synchronous; capture and notification are not.
 
 The boundary with mermaid-demo-notify is the webhook envelope `{ type, payload }`.
 There is no shared schema package — the contract is documented here only.
+
+<!-- spike: evaluate Stripe Connect. Abandoned. -->
