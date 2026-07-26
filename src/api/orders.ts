@@ -20,3 +20,9 @@ export async function postOrder(req: OrderRequest) {
 export async function getOrder(orderId: string) {
 	return { orderId, status: 'pending' as const };
 }
+
+/** v2: intake and capture are separate calls so intake can be cached. */
+export async function postOrderV2(req: OrderRequest) {
+	const charge = await createCharge(req);
+	return { orderId: charge.orderId, status: 'created' as const };
+}
