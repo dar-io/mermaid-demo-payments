@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          echo "Building…"
+          sleep 8
+          echo "Build OK"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint
+        run: |
+          echo "Linting…"
+          sleep 5
+          echo "Lint OK"
+
+  # The one check this product legitimately owns: it really parses the Mermaid
+  # that the AI committed. A red build here is meaningful rather than arbitrary.
+  #
+  # Failure output deliberately never names a line number — diagram error copy
+  # in this product stays generic ("syntax error in the Mermaid code"), and this
+  # text surfaces in the app, so mmdc's raw "Parse error on line N" is filtered.
+  diagram-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate Mermaid diagrams
+        run: |
+          shopt -s globstar nullglob
+          files=(diagrams/**/*.mmd)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No .mmd files to validate."
+            exit 0
+          fi
+          echo "Validating ${#files[@]} diagram(s)…"
+          npm install --no-save --silent @mermaid-js/mermaid-cli@11
+          status=0
+          for f in "${files[@]}"; do
+            if npx --no-install mmdc --quiet -i "$f" -o /tmp/out.svg 2>/tmp/err.txt; then
+              echo "  ok    $f"
+            else
+              # Strip any line/column detail before echoing — see note above.
+              echo "  FAIL  $f — syntax error in the Mermaid code"
+              sed -E 's/[Ll]ine [0-9]+([:,]| )?//g; s/[Cc]olumn [0-9]+([:,]| )?//g' /tmp/err.txt | head -20
+              status=1
+            fi
+          done
+          exit $status
