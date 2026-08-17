@@ -1,0 +1,35 @@
+flowchart TD
+  subgraph API ["API Layer"]
+    direction TB
+    A_orders["orders.ts"]
+    B_webhooks["webhooks.ts"]
+  end
+  subgraph Billing ["Billing Layer"]
+    direction TB
+    C_charge["charge.ts"]
+  end
+  subgraph Queue ["Queue Layer"]
+    direction TB
+    D_worker["worker.ts"]
+  end
+  subgraph Webhooks ["Webhooks Layer"]
+    direction TB
+    E_dispatch["dispatch.ts"]
+  end
+  subgraph Database ["Database"]
+    direction TB
+    F_customers["customers"]
+    G_orders["orders"]
+    H_charges["charges"]
+    I_webhook_deliveries["webhook_deliveries"]
+  end
+  A_orders -->|"createCharge"| C_charge
+  A_orders -->|"enqueue"| D_worker
+  B_webhooks -->|"settleCharge"| C_charge
+  B_webhooks -->|"dispatch"| E_dispatch
+  C_charge --> G_orders
+  C_charge --> H_charges
+  E_dispatch -->|"POST"| J_notify["mermaid-demo-notify"]
+  F_customers --> G_orders
+  G_orders --> H_charges
+  H_charges --> I_webhook_deliveries
