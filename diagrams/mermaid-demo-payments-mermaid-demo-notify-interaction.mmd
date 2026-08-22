@@ -1,0 +1,5 @@
+flowchart LR
+  A["POST /orders"] --> B["createCharge"]
+  B --> C["enqueue"]
+  C --> D["dispatch"]
+  D --> E["mermaid-demo-notify"]
